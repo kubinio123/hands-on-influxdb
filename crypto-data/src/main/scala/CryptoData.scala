@@ -34,8 +34,14 @@ object CryptoData extends App {
 
   val pointsQueue: SourceQueueWithComplete[Point] =
     Source
-      .queue[Point](10000, OverflowStrategy.backpressure)
-      .grouped(1000)
+      .queue[Point](1000, OverflowStrategy.backpressure)
+      .grouped(100)
+      .wireTap(x => println(x))
+      .recover { case e =>
+        println(e)
+        throw e
+      }
+      // todo fix StreamDetachedException
       .to(Influxdb.write)
       .run()
 
@@ -55,7 +61,8 @@ object CryptoData extends App {
           .addField("volume", trade.volume)
           .time(trade.timestamp, WritePrecision.MS)
       }
-      .alsoTo(pointsQueueSink)
+      .wireTap(p => pointsQueue.offer(p).onComplete(println(_)))
+//      .via(Flow[Point].mapAsync(1)(pointsQueue.offer))
       .map { _ => WebSocketFrame.pong }
 
   val processPrices: AkkaStreams.Pipe[WebSocketFrame.Data[_], WebSocketFrame] =
@@ -72,7 +79,8 @@ object CryptoData extends App {
               .time(Instant.now(), WritePrecision.MS)
         }.toSeq
       }
-      .alsoTo(pointsQueueSink)
+//      .via(Flow[Point].mapAsync(1)(pointsQueue.offer))
+      .wireTap(p => pointsQueue.offer(p).onComplete(println(_)))
       .map { _ => WebSocketFrame.pong }
 
   val trades = basicRequest
@@ -83,7 +91,7 @@ object CryptoData extends App {
     .response(asWebSocketStream(AkkaStreams)(processPrices))
     .get(uri"wss://ws.coincap.io/prices?assets=ALL")
 
-  val backend = AkkaHttpBackend()
+  val backend = AkkaHttpBackend.usingActorSystem(as)
 
   // let it run for 15 minutes...
   Await.result(Seq(trades, prices).map(_.send(backend)).sequence, 15.minutes)

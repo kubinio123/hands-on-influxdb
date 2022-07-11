@@ -9,7 +9,7 @@ import scala.concurrent.Future
 
 object Influxdb {
 
-  private lazy val options = InfluxDBClientOptions
+  private val options = InfluxDBClientOptions
     .builder()
     .bucket("crypto")
     .url("http://localhost:8086")
@@ -18,8 +18,8 @@ object Influxdb {
     .logLevel(LogLevel.BASIC)
     .build()
 
-  private lazy val client = InfluxDBClientScalaFactory.create(options)
-  private lazy val writeApi = client.getWriteScalaApi
+  private val client = InfluxDBClientScalaFactory.create(options)
+  private val writeApi = client.getWriteScalaApi
 
   val write: Sink[Seq[Point], Future[Done]] = writeApi.writePoints()
 
