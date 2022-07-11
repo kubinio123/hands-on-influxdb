@@ -1,0 +1,15 @@
+version: '3.5'
+services:
+  influxdb:
+    hostname: influxdb
+    image: influxdb:latest
+    ports:
+      - '8086:8086'
+    volumes:
+      - ./volumes/influxdb-storage:/var/lib/influxdb
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=adminadmin
+      - DOCKER_INFLUXDB_INIT_ORG=jc
+      - DOCKER_INFLUXDB_INIT_BUCKET=trades
