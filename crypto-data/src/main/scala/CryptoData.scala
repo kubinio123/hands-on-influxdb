@@ -1,7 +1,5 @@
-import akka.Done
 import akka.actor.ActorSystem
-import akka.stream.OverflowStrategy
-import akka.stream.scaladsl.{Flow, Sink, Source, SourceQueueWithComplete}
+import akka.stream.scaladsl.{Flow, Source}
 import cats.syntax.all._
 import com.influxdb.client.domain.WritePrecision
 import com.influxdb.client.write.Point
@@ -13,6 +11,7 @@ import sttp.client3.akkahttp.AkkaHttpBackend
 import sttp.ws.WebSocketFrame
 
 import java.time.Instant
+import java.util.concurrent.ConcurrentLinkedQueue
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, Future}
@@ -32,21 +31,7 @@ object CryptoData extends App {
 
   implicit val as: ActorSystem = ActorSystem("crypto-data")
 
-  val pointsQueue: SourceQueueWithComplete[Point] =
-    Source
-      .queue[Point](1000, OverflowStrategy.backpressure)
-      .grouped(100)
-      .wireTap(x => println(x))
-      .recover { case e =>
-        println(e)
-        throw e
-      }
-      // todo fix StreamDetachedException
-      .to(Influxdb.write)
-      .run()
-
-  val pointsQueueSink: Sink[Point, Future[Done]] =
-    Sink.foreachAsync[Point](10)(pointsQueue.offer(_).void)
+  val points = new ConcurrentLinkedQueue[Point]()
 
   val processTrades: AkkaStreams.Pipe[WebSocketFrame.Data[_], WebSocketFrame] =
     Flow[WebSocketFrame.Data[_]]
@@ -61,8 +46,7 @@ object CryptoData extends App {
           .addField("volume", trade.volume)
           .time(trade.timestamp, WritePrecision.MS)
       }
-      .wireTap(p => pointsQueue.offer(p).onComplete(println(_)))
-//      .via(Flow[Point].mapAsync(1)(pointsQueue.offer))
+      .via(Flow[Point].map(points.offer))
       .map { _ => WebSocketFrame.pong }
 
   val processPrices: AkkaStreams.Pipe[WebSocketFrame.Data[_], WebSocketFrame] =
@@ -79,22 +63,31 @@ object CryptoData extends App {
               .time(Instant.now(), WritePrecision.MS)
         }.toSeq
       }
-//      .via(Flow[Point].mapAsync(1)(pointsQueue.offer))
-      .wireTap(p => pointsQueue.offer(p).onComplete(println(_)))
+      .via(Flow[Point].map(points.offer))
       .map { _ => WebSocketFrame.pong }
 
-  val trades = basicRequest
+  val subscribeTrades = basicRequest
     .response(asWebSocketStream(AkkaStreams)(processTrades))
     .get(uri"wss://ws.coincap.io/trades/binance")
 
-  val prices = basicRequest
+  val subscribePrices = basicRequest
     .response(asWebSocketStream(AkkaStreams)(processPrices))
     .get(uri"wss://ws.coincap.io/prices?assets=ALL")
 
   val backend = AkkaHttpBackend.usingActorSystem(as)
 
-  // let it run for 15 minutes...
-  Await.result(Seq(trades, prices).map(_.send(backend)).sequence, 15.minutes)
+  val process = Future {
+    Source.single(Seq.fill(1000)(points.poll)).to(Influxdb.write).run()
+  }
+
+  Future.sequence(
+    Seq(
+      subscribeTrades.send(backend),
+      subscribePrices.send(backend)
+    )
+  )
+
+  Await.result(process.foreverM, 15.minutes)
 
   backend.close()
   Influxdb.close()

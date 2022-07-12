@@ -13,5 +13,5 @@ lazy val cryptoData = (project in file("crypto-data"))
   .settings(commonSettings)
   .settings(
     name := "crypto-data",
-    libraryDependencies ++= Seq(Libs.sttp3akka, Libs.akkaStreams, Libs.influxdbClient) ++ Libs.circe
+    libraryDependencies ++= Seq(Libs.sttp3akka, Libs.influxdbClient) ++ Libs.circe ++ Libs.akka
   )
