@@ -81,21 +81,25 @@ object CryptoData extends App {
           }
       }
       .grouped(1000)
-//      .to(Influxdb.write)
-      .to(Sink.foreach[Seq[Point]](x => println(x.size)))
+      .via(Influxdb.write)
+      .to(Sink.ignore)
       .run()
 
   val backend = AkkaHttpBackend.usingActorSystem(as)
 
-  val never_ending_story = Future.sequence(
-    Seq(
-      subscribeTrades.send(backend),
-      subscribePrices.send(backend)
+  // let it collect data for some time...
+  try {
+    val subscriptions = Future.sequence(
+      Seq(
+        subscribeTrades.send(backend),
+        subscribePrices.send(backend)
+      )
     )
-  )
 
-  Await.result(never_ending_story, 15.minutes)
-
-  backend.close()
-  Influxdb.close()
+    Await.result(subscriptions, 30.minutes)
+  } catch {
+    case _: Throwable =>
+      backend.close()
+      Influxdb.close()
+  }
 }
