@@ -6,7 +6,8 @@ services:
     ports:
       - '8086:8086'
     volumes:
-      - ./volumes/influxdb-storage:/var/lib/influxdb
+      - ./volumes/influxdb-storage:/var/lib/influxdb2
+      - ./volumes/influxdb-config:/etc/influxdb2
     environment:
       - DOCKER_INFLUXDB_INIT_MODE=setup
       - DOCKER_INFLUXDB_INIT_USERNAME=admin

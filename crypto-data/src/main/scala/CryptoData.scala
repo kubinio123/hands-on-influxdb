@@ -10,7 +10,7 @@ import sttp.client3._
 import sttp.client3.akkahttp.AkkaHttpBackend
 import sttp.ws.WebSocketFrame
 
-import java.time.Instant
+import java.time.Instant.now
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, Future}
@@ -20,7 +20,6 @@ object CryptoData extends App {
   implicit val as: ActorSystem = ActorSystem("crypto-data")
 
   case class Trade(
-      exchange: String,
       base: String,
       quote: String,
       direction: String,
@@ -75,10 +74,11 @@ object CryptoData extends App {
                     .measurement("prices")
                     .addTag("currency", currency)
                     .addField("price", price)
-                    .time(Instant.now(), WritePrecision.MS)
+                    .time(now(), WritePrecision.MS)
               }.toSeq
             case _ => Seq.empty
           }
+        case _ => Seq.empty
       }
       .grouped(1000)
       .via(Influxdb.write)
@@ -87,7 +87,6 @@ object CryptoData extends App {
 
   val backend = AkkaHttpBackend.usingActorSystem(as)
 
-  // let it collect data for some time...
   try {
     val subscriptions = Future.sequence(
       Seq(
@@ -96,7 +95,7 @@ object CryptoData extends App {
       )
     )
 
-    Await.result(subscriptions, 30.minutes)
+    Await.result(subscriptions, 1.hour)
   } catch {
     case _: Throwable =>
       backend.close()

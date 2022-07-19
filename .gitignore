@@ -44,4 +44,4 @@ bin/
 #general
 *.class
 
-volumes/influxdb-storage/
+volumes/*
