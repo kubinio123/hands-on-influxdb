@@ -6,7 +6,7 @@ import com.influxdb.client.{InfluxDBClientFactory, InfluxDBClientOptions}
 
 import scala.jdk.CollectionConverters._
 
-object Influxdb {
+class Influxdb {
 
   private val options = InfluxDBClientOptions
     .builder()
@@ -17,7 +17,7 @@ object Influxdb {
     .logLevel(LogLevel.BASIC)
     .build()
 
-  private lazy val client = {
+  private val client = {
     val client = InfluxDBClientFactory.create(options)
     client.ping()
     client
