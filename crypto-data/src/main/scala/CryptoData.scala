@@ -39,6 +39,8 @@ object CryptoData extends App {
     .response(asWebSocketStream(AkkaStreams)(processFrame(subscription = "prices")))
     .get(uri"wss://ws.coincap.io/prices?assets=ALL")
 
+  val influxdb = new Influxdb
+
   def processFrame(subscription: String): AkkaStreams.Pipe[WebSocketFrame.Data[_], WebSocketFrame] =
     Flow.fromFunction {
       case WebSocketFrame.Text(payload, _, _) =>
@@ -58,7 +60,7 @@ object CryptoData extends App {
                 .measurement("trades")
                 .addTag("base", trade.base)
                 .addTag("direction", trade.direction)
-                .addField("quote", trade.quote)
+                .addTag("quote", trade.quote)
                 .addField("volume", trade.volume)
                 .time(trade.timestamp, WritePrecision.MS)
 
@@ -81,7 +83,7 @@ object CryptoData extends App {
         case _ => Seq.empty
       }
       .grouped(1000)
-      .via(Influxdb.write)
+      .via(influxdb.write)
       .to(Sink.ignore)
       .run()
 
@@ -99,6 +101,6 @@ object CryptoData extends App {
   } catch {
     case _: Throwable =>
       backend.close()
-      Influxdb.close()
+      influxdb.close()
   }
 }
