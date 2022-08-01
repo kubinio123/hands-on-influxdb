@@ -1,6 +1,6 @@
 ### Read the blog
 
-This code was created for the purpose of [this blog post](todo), I encourage you to read it first ;)
+This code was created for the purpose of [this blog post](https://softwaremill.com/hands-on-influxdb/), I encourage you to read it first ;)
 
 ### Running the example
 
